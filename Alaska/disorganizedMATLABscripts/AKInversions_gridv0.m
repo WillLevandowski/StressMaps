@@ -1,0 +1,309 @@
+%%% make Wrangell block (Southern AK block), Bering microplate, Arctic microplate
+%%% note volcanoes! Stress studies have been done for Reboubt, Spurr, and Katmai
+%%% compute misfits-40 degrees is high, variance of R (same as Aphi?)-0.2 is high
+%%% previous: 20x20km grid, inverting the 12 nearest FMs
+%%% stronger slab-NaM coupling around Prince Wm Sound - same SHmax up to
+%%% 200 km inland as in slab; previous work unsure about contamination
+%%% previous: Greatest variations Cook Inlet to E Castle Mtn Fault: near
+%%% edge of Wrangell block?...or at least in the western half of WrBl
+%%% previous: Interactions btw Wrangell and Bering unclear. More data now?
+
+cc
+setcrustalFMs
+toplot=1;subregion=1;
+classifyAndPlot
+% toplot=0;
+figure(997);
+a=find(z>20 & type<=1);plot3(Lon(a),Lat(a),-z(a),'ro','markerfacecolor','r')
+a=find(z>20 & type<=1);plot3(Lon(a),Lat(a),0*-z(a),'ro','markerfacecolor','r')
+a=find(z<20 & type<=1);plot3(Lon(a),Lat(a),-z(a),'go','markerfacecolor','g')
+ylim([59 66]);xlim([-154 -145])
+
+Lon_all=Lon;Lat_all=Lat;z_all=z;mechs_all=mechs;
+% 
+w=0.1;
+[lons,lats]=gridxy(Lon/2.22,Lat,w);
+lons=lons*2.22;
+use=ones(size(lons));
+types=lons+NaN;
+SHs=lons+NaN;
+ns=lons+NaN;
+for i=1:numel(lons)
+      Poly= [lons(i)-1.11*w lats(i)+0.5*w
+           lons(i)+1.11*w lats(i)+0.5*w
+           lons(i)+1.11*w lats(i)-0.5*w
+           lons(i)-1.11*w lats(i)-0.5*w
+           lons(i)-1.11*w lats(i)+0.5*w];
+     within=find(inpolygon(Lon_all,Lat_all,Poly(:,1),Poly(:,2)) );%& z<=26 & (Lat>61 | z<15 | Lon>-140 | Lon<-150) & (Lon>-146 | Lon<-148.5 | Lat>62) & (Lon>-141.4 | Lon<-142 | Lat>62));
+   if isempty(within);use(i)=0;else
+       SH_=SH(within);
+       meanSH=mean(SH_);
+         foo=find(SH_<meanSH-90);
+       SH_(foo)=SH_(foo)+180;
+         meanSH=median(SH_);
+       foo=find(SH_>meanSH+90);
+       SH_(foo)=SH_(foo)-180;
+    SHs(i)=mean(SH_);
+    types(i)=mean(type(within));
+    ns(i)=length(within);
+   end
+end
+
+dlmwrite('smoothPaxesgrid.txt',[lons(use>0) lats(use>0) types(use>0) SHs(use>0) 0.4+0*SHs(use>0)],'\t')
+
+SH0=mod(SH,180);
+smoothSH=SH0;
+type0=type;
+for i=1:length(SH0)
+    dx=Lon-Lon(i);dx=dx.*cosd(Lat(i));
+    dy=Lat-Lat(i);
+    dr=sqrt( (dx*113.12).^2 + (dy*110.57).^2);
+    near=find(dr<10);
+    
+    if length(near)>1
+        s=SH0(near);
+        dr=dr(near);
+        s(s>median(s)+90)=s(s>median(s)+90)-180;
+        s(s<median(s)-90)=s(s<median(s)-90)+180;
+         s(s>median(s)+90)=s(s>median(s)+90)-180;
+        s(s<median(s)-90)=s(s<median(s)-90)+180;
+         s(s>mean(s)+90)=s(s>mean(s)+90)-180;
+        s(s<mean(s)-90)=s(s<mean(s)-90)+180;
+        
+        weights=exp(-dr.^2 / (2*5).^2);
+
+        weights=weights/sum(weights);
+        smoothSH(i)=dot(weights,s);
+        s(s>smoothSH(i)+90)=s(s>smoothSH(i)+90)-180;
+        s(s<smoothSH(i)-90)=s(s<smoothSH(i)-90)+180;
+        smoothSH(i)=dot(weights,s);
+        s(s>smoothSH(i)+90)=s(s>smoothSH(i)+90)-180;
+        s(s<smoothSH(i)-90)=s(s<smoothSH(i)-90)+180;
+        smoothSH(i)=dot(weights,s);
+       
+        type0(i)=dot(weights,type(near));
+%         if length(near)>4
+% %         if range(s)>180
+%             pause
+%         end
+    end
+end
+
+dlmwrite('smootherPaxes.txt',[Lon Lat type0 smoothSH 0.4+0*smoothSH],'\t')
+
+tic
+w=0.2;
+[lons,lats]=gridxy(Lon/2.22,Lat,w);
+lons=lons*2.22;
+use=ones(size(lons));
+for i=1:numel(lons)
+      Poly= [lons(i)-1.11*w lats(i)+0.5*w
+           lons(i)+1.11*w lats(i)+0.5*w
+           lons(i)+1.11*w lats(i)-0.5*w
+           lons(i)-1.11*w lats(i)-0.5*w
+           lons(i)-1.11*w lats(i)+0.5*w];
+     within=find(inpolygon(Lon_all,Lat_all,Poly(:,1),Poly(:,2)) );%& z<=26 & (Lat>61 | z<15 | Lon>-140 | Lon<-150) & (Lon>-146 | Lon<-148.5 | Lat>62) & (Lon>-141.4 | Lon<-142 | Lat>62));
+% dx=(Lon-lons(i)).*cosd( lats(i)/2+Lat/2)*111;
+% dy=(Lat-lats(i))*111;
+% d=sqrt(dx.^2 + dy.^2);
+% if min(d)>60*w;use(i)=0;end
+if isempty(within);use(i)=0;end
+    
+    
+end
+
+%         figure;plot(Lon_all,Lat_all,'ko');hold on
+%                 plot(lons,lats,'k.')
+%                 plot(lons(use==1),lats(use==1),'m*')
+                okay=find(use==1 );%& lons>-155 & lats<64 & lons<-140);
+lats=lats(okay);
+lons=lons(okay);
+
+
+mark=0*Lat_all;
+n_used=0*lons;
+for subregion = 1:numel(lons)
+    
+    
+     Poly= [lons(subregion)-1.11*w lats(subregion)+0.5*w
+           lons(subregion)+1.11*w lats(subregion)+0.5*w
+           lons(subregion)+1.11*w lats(subregion)-0.5*w
+           lons(subregion)-1.11*w lats(subregion)-0.5*w
+           lons(subregion)-1.11*w lats(subregion)+0.5*w];
+   
+
+ within=find(inpolygon(Lon_all,Lat_all,Poly(:,1),Poly(:,2)) );%& z<=26 & (Lat>61 | z<15 | Lon>-140 | Lon<-150) & (Lon>-146 | Lon<-148.5 | Lat>62) & (Lon>-141.4 | Lon<-142 | Lat>62));
+    D=ones(length(within),1);
+
+ if length(within)<25
+        dLon=(lons(subregion)-Lon_all).*cosd(lats(subregion)/2+Lat_all/2);
+        dLat= lats(subregion)-Lat_all;
+        d=sqrt( (dLon).^2 + (dLat) .^2);
+        within=find(d<=quantile(d,25/length(d)));
+         D=ones(length(within),1)*w/2;
+         dd=d(within);
+         D(dd>D)=dd(dd>D);
+  end 
+        within=unique(within);
+Lon=Lon_all(within);Lat=Lat_all(within);z=z_all(within);
+mechs=mechs_all(within,:);
+n_used(subregion)=length(within);
+
+weights=1./D;weights=weights/sum(weights);
+tx=dot(Lon,weights);
+ty=dot(Lat,weights);
+
+%  tx=mean(Lon);ty=mean(Lat);
+% if subregion~=1;
+    mark(within)=mark(within)+1;
+%     figure(1);
+%     text(tx,ty,num2str( subregion),'HorizontalAlignment','center');
+% %     plotpt(Poly,'b')
+% plot(Lon,Lat,'b*')
+% end
+plot_file=['subregion' num2str(subregion)];
+name=['subregion' num2str(subregion)];
+    runAlaskaSubregionInversion
+%      gam=0*aphi+NaN;
+% 
+% % z=maindepth;Pp=-9.8; Sv=-25;Sv=Sv*z;Pp=Pp*z+dPp;
+% % 
+% % for i=1:num_realizations
+% %         friction=fric(i);gamma=( sqrt(friction^2+1) +friction)^2;
+% % tau=tau_all(:,:,i);
+% %     e=eig(tau);phi=(e(2)-e(3))/(e(1)-e(3));
+% %    if aphi(i)<1
+% %        s1=Sv;
+% %        s3=Pp+(s1-Pp)/gamma;
+% %        s2=(1-phi)*s3+phi*s1; 
+% %        sh1=s2;sh2=s3;
+% %    end
+% %     if aphi(i)>=1 && aphi(i)<2
+% %        s2=Sv;
+% %         s3= (Sv/phi - Pp + gamma*Pp) / (1/phi -1 + gamma);
+% %         s1=(Sv-s3)/phi + s3;
+% %         sh1=s1;
+% %         sh2=s3;
+% %    end
+% %    if aphi(i)>=2
+% %        s3=Sv;
+% %       s1=Pp+gamma*(s3-Pp);
+% %       s2=(1-phi)*s3+phi*s1; 
+% %        sh1=s1;sh2=s2;
+% %    end
+% %    gam(i)=(sh1+sh2-2*Sv)/(sh1-sh2);
+% % end
+% 
+% % figure(1001);
+% % plot(aphi,gam,'ko');hold on
+% pause(0.01)
+% gams(subregion)=0;%median(gam);
+% gams2(subregion)=0;%mean(gam);
+% %      FSPAlaska
+%  output(subregion,:)=[tx ty A_phi_high2 SHmax_max2 0.6 median(gam(~isnan(gam)))];
+%  output2(subregion,:)=[tx ty A_phi_high2 SHmax_min2 0.6 median(gam(~isnan(gam)))];
+%  output3(subregion,:)=[tx ty A_phi SHmax_max2 0.45 median(gam(~isnan(gam)))];
+%  output4(subregion,:)=[tx ty A_phi SHmax_min2 0.45 median(gam(~isnan(gam)))];
+%  output5(subregion,:)=[tx ty A_phi_low2 SHmax_max2 0.3 median(gam(~isnan(gam)))];
+%  output6(subregion,:)=[tx ty A_phi_low2 SHmax_min2 0.3 median(gam(~isnan(gam)))];
+ output7(subregion,:)=[tx ty A_phi SHmax 0.3 ];%median(gam(~isnan(gam)))];
+%  
+%  %%% Aphi ap comp ext
+%  %%% 0.5  0  0   1
+% %%% 1.5   0.5  0.5 0.5
+% %%% 2.5  1   1   0
+% ap=A_phi;if ap<0.5;ap=0.5;end;if ap>2.5; ap=2.5;end
+% ap=ap-0.5;ap=ap/2;ext=1-ap;
+%  output8(subregion,:)=[tx ty 2.5 SHmax ap/4 ];
+%  output9(subregion,:)=[tx ty 0.5 SHmax+90 ext/4 ];
+% 
+% %  output(subregion,:)=[mean(Lon) mean(Lat) A_phi SHmax 0.3];
+% %  pause(0.01)
+ if mod(subregion,50)==0;fprintf([num2str(round(100*subregion/length(n_used))) ' percent done ']);toc;end
+end
+toc
+% output7(general_misfitL1>45,:)=NaN;
+
+% a=[lons lats general_misfitL1'/200];
+% dlmwrite('gridMisfit',a,'\t')
+% foo=find(general_misfitL1>45);
+% a=[lons(foo) lats(foo) general_misfitL1(foo)'/200];
+% dlmwrite('gridMisfit_45',a,'\t')
+% make_contour(lons,lats,general_misfitL2',0.2,0.5);
+% plot(lons,lats,'ko')
+% make_contour(output7(:,1),output7(:,2),output7(:,end),0.1,2.5);colormap(flipud(jet));caxis([-3 3])
+% make_contour(output7(:,1),output7(:,2),output7(:,3),0.1,2.5);colormap(flipud(jet));caxis([0.5 2.5])
+dlmwrite('AKPaxesweight',output7,'\t')
+
+F=scatteredInterpolant(output7(:,1),output7(:,2),output7(:,3),'natural','none');
+[nn,tt]=gridxy(Lon_all,Lat_all,0.1);
+nn=mat2vec(nn);tt=mat2vec(tt);
+aa=F(nn,tt);
+aa1=aa;
+for i=1:numel(nn)
+    if isempty(find(abs(Lon_all-nn(i))<2.22 & abs(Lat_all-tt(i))<1))
+        aa1(i)=NaN;
+    end
+end
+dlmwrite('interpAphi_grid_n15',[nn(~isnan(aa1)) tt(~isnan(aa1)) aa1(~isnan(aa1))],'\t')
+dlmwrite('interpAphi_gridnan_n15',[nn tt aa1],'\t')
+
+
+
+output77=output7;
+ap=output77(:,3);
+% da=0*ap;%da(ap<1.4)=90;
+
+da=ap-0.5;da(da<0)=0;da(da>2)=2;
+da=da*45;%da(da<30)=0;%figure;plot(ap,da,'ko')
+da=90-da;
+
+south=find(output77(:,4)>90 & output77(:,4)<270);
+output77(south,4)=output77(south,4)+180;
+east=find(output77(:,1)<-150 & output77(:,4)<180);output77(east)=output77(east)+180;
+
+c=find(output77(:,3)>=2);
+dlmwrite('rotPaxesgrid',[output77(c,1:3) output77(c,4)+da(c) output77(c,5)*2 ],'\t')
+e=find(output77(:,3)<=1);
+dlmwrite('rotPaxesgrid_ext',[output77(e,1:3) output77(e,4)+da(e) output77(e,5)*2 ],'\t')
+
+s=find(output77(:,3)>=1 &output77(:,3)<=2 );
+dlmwrite('rotPaxesgrid_ss',[output77(s,1:3) output77(s,4)+da(s) output77(s,5)*2 ],'\t')
+
+dlmwrite('gridmisfits',[lons lats general_misfitL1'/200 general_misfitL1' ],'\t')
+
+
+% e=find(output7(:,3)<0.75);
+% dlmwrite('rotPaxesgrid_ext2',[output7(e,1:2) output7(e,4)+da(e) output7(e,5)+0.1 ],'\t')
+
+% 
+% 
+% foo=find(output7(:,3)<1);
+% output7(foo,4)=output7(foo,4)-90;
+% 
+% foo=find(output7(:,3)>=1 & output7(:,3)<=2);
+% output7(foo,4)=output7(foo,4)-45;
+% % dlmwrite('AKPaxes1gridw025_n20_weighted',output,'\t')
+% % dlmwrite('AKPaxes2gridw025_n20_weighted',output2,'\t')
+% % dlmwrite('AKPaxes3gridw025_n20_weighted',output3,'\t')
+% % dlmwrite('AKPaxes4gridw025_n20_weighted',output4,'\t')
+% % dlmwrite('AKPaxes5gridw025_n20_weighted',output5,'\t')
+% % dlmwrite('AKPaxes6gridw025_n20_weighted',output6,'\t')
+% dlmwrite('AKPaxes_comp_weighted',output8,'\t')
+% dlmwrite('AKPaxes_ext_weighted',output9,'\t')
+% % 
+% % foo=find(output9(:,3)<0.33);output9(foo,3)=0;
+% % foo=find(output8(:,3)<0.33);output8(foo,3)=0;
+% % output=load('AKPaxes1gridw025_n20_weighted');
+% % 
+% % F=scatteredInterpolant(output(:,1),output(:,2),output(:,3),'natural','none');
+% % [nn,tt]=gridxy(Lon_all,Lat_all,0.1);
+% % nn=mat2vec(nn);tt=mat2vec(tt);
+% % aa=F(nn,tt);
+% % aa1=aa;
+% % for i=1:numel(nn)
+% %     if isempty(find(abs(Lon_all-nn(i))<3 & abs(Lat_all-tt(i))<3))
+% %         aa1(i)=NaN;
+% %     end
+% % end
+% % dlmwrite('interpAphi_grid_weighted',[nn tt aa1],'\t')
